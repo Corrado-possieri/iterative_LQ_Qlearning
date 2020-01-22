@@ -2,7 +2,7 @@ clear all
 close all
 clc
 
-load simCOMAU_.mat
+load simCOMAU.mat
 
 figure()
 semilogy(Icost)

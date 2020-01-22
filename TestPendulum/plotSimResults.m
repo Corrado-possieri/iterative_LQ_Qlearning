@@ -2,7 +2,7 @@ clear all
 close all
 clc
 
-load simPendulum_.mat
+load simPendulum.mat
 
 figure()
 semilogy(Icost)
