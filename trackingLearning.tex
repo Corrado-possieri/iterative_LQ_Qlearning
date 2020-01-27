@@ -1,0 +1,989 @@
+\documentclass[10pt]{IEEEtran}      % Comment this line out if you need a4paper
+                                                          
+
+\let\proof\relax 
+\let\endproof\relax
+\usepackage{amssymb,amsthm}
+\usepackage{amsmath,mathtools}
+\usepackage{amsthm}
+\DeclareMathOperator{\sgn}{sgn}   
+\usepackage{stmaryrd}
+\usepackage{paralist}
+\usepackage{bbold}
+\usepackage{tikz,pgfplots,subfigure}
+\usetikzlibrary{calc,arrows,shapes,backgrounds,calc,positioning,patterns,decorations.pathmorphing,decorations.markings,mindmap,trees}
+\usepackage{eurosym}
+\usepackage{epstopdf,multicol,float}
+\usepackage[hide links]{hyperref}
+\usepackage{cleveref}
+\usepackage{bm}
+\usepackage{algorithm}
+\usepackage[noend]{algorithmic}
+\usepackage{upgreek}
+\usepackage{color}
+\usepackage{siunitx}	
+\usepackage{booktabs}
+\usepackage{tabularx}										
+\usepackage{longtable}	
+\usepackage{multirow}	
+\usepackage{balance}	
+
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\mN}{\mathcal{N}}
+\newcommand{\bE}{\mathbb{E}}
+\newcommand{\tr}{\mathrm{tr}}
+\newcommand{\col}{\mathrm{col}}
+
+\renewcommand{\algorithmicrequire}{\textbf{Input:}}
+\renewcommand{\algorithmicensure}{\textbf{Output:}}
+\newcommand{\algorithmicbreak}{\textbf{break}}
+\newcommand{\BREAK}{\STATE \algorithmicbreak}
+
+\theoremstyle{theorem}
+\newtheorem{theo}{Theorem}
+\newtheorem{coro}{Corollary}
+\newtheorem{prp}{Propostion}
+
+\theoremstyle{remark}
+\newtheorem{remm}{Remark}
+
+
+\DeclareMathOperator*{\argmin}{argmin}
+\newcommand{\red}[1]{{\textcolor{white!30!red}{#1}}}
+
+\title{An iterative data-driven linear quadratic method to solve nonlinear discrete-time tracking problems}
+
+\author{
+\thanks{C. Possieri is with Istituto di Analisi dei Sistemi ed Informatica ``A. Ruberti'', Consiglio Nazionale delle Ricerche (IASI-CNR), 00185 Roma, Italy
+(e-mail: corrado.possieri@iasi.cnr.it). \newline
+\indent G. P. Incremona is with Dipartimento di Elettronica, Informazione e Bioingegneria, Politecnico di Milano, 20133 Milan, Italy
+(e-mail: gianpaolo.incremona@polimi.it)\newline
+\indent G. C. Calafiore is with Dipartimento di Elettronica e Telecomunicazioni, Politecnico di Torino, 10129 Torino, Italy,
+and also with IEIIT-CNR Torino, 10129 Torino, Italy (e-mail: giuseppe.calafiore@polito.it). \newline
+\indent A. Ferrara is with Dipartimento di Ingegneria Industriale e dell'Informazione, Universit\`a degli Studi di Pavia, 27100 Pavia, Italy
+(e-mail: antonella.ferrara@unipv.it).
+}
+Corrado Possieri, Gian Paolo Incremona, Giuseppe C. Calafiore and Antonella Ferrara}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+The goal of this paper is to introduce a novel data-driven iterative linear quadratic control method to solve a class of nonlinear 
+optimal tracking problems. 
+Specifically, an algorithm is proposed to approximate the Q-factors arising from linear quadratic stochastic optimal tracking problems.
+This algorithm is then coupled with iterative linear quadratic methods to determine local solutions to nonlinear optimal tracking problems
+in a purely data-driven setting.
+Finally, simulation results assess the proposal, showing that it is a viable solution even in field implementation.
+\end{abstract}
+\begin{IEEEkeywords}
+Data-driven control design, linear quadratic control, optimal control, dynamic programming.
+\end{IEEEkeywords}
+
+\section{Introduction}
+Reinforcement learning seeks at determining an efficient control policy without any knowledge of the system model, 
+by coupling features of adaptive \cite{aastrom2013adaptive} and optimal \cite{lewis2012optimal} control.
+These strategies are based on different paradigms for the design of controllers: the former learns on-line
+how to control an unknown system based on measurements but does not have optimality as primary objective \cite{ioannou2012robust}, 
+whereas the latter allows one to determine the optimal feedback policy but requires a model for the system dynamics \cite{liberzon2011calculus}.
+In turn, reinforcement learning methods aim at designing adaptive controllers that, on the basis of observations of the correspondence
+between actions and penalties/rewards, dynamically determine the optimal control policy \cite{sutton2018reinforcement}.
+
+The dynamic programming algorithm \cite{bertsekas2005dynamic} constitutes one of the most intuitive approaches to deal
+with dynamic optimization problems. It allows to break the complexity of a cumulative optimization problem by breaking it
+into sub-problems in a recursive manner \cite{kirk2004optimal}. When dealing with nonlinear optimal control problems,
+this reduces to compute the solution to the Hamilton-Jacobi-Bellman equation (HJBE), whose analytical
+solution is generically hardly calculable in practice \cite{werbos1992approximate}. On the other hand, if the system is linear,
+the dynamic programming algorithm reduces to a simple difference equation to be solved backward in time: the so-called difference Riccati equation
+\cite{dorato1985optimal,ferrante2013generalised,ntogramatzidis2019geometry}.
+In \cite{li2004iterative,1469949,li2007iterative,kumar2016optimal}, by introducing iterative linear quadratic (LQ) methods,
+it has been shown how to use such 
+a difference equation to find the solution to nonlinear optimal control problems.
+However, in all the above cases, perfect knowledge of the system is required to determine the optimal control.
+
+Reinforcement learning (also referred to as approximate dynamic programming or as
+neuro-dynamic programming) methods have then be used to overcome such a requirement and 
+to deal with problems for which the HJBE is not analytically solvable \cite{bertsekas1995neuro,bersekas2018reinf}.
+Among these techniques, Q-learning is one of the most widespread \cite{watkins1992q}. The key idea
+behind such a procedure is to employ dynamic programming and samples of the system trajectories so to
+find an approximation of the state-action value function. When dealing with discrete-time
+Markov decision processes, Q-learning has been extensively studied and it has been shown capable of
+solving very complex problems \cite{mnih2017methods}; see also the survey made in \cite{lewis2012reinforcement}.
+
+The main goal of this paper is to propose a new Q-learning scheme capable of locally solving a class of nonlinear optimal tracking problems.
+To pursue this objective, stochastic LQ optimal tracking problems are firstly solved in a data-driven scenario via Q-factor approximation
+in value space. This result is then coupled with iterative LQ methods to compute a policy that  locally solves the nonlinear optimal tracking problem.
+
+
+\subsection{Comparison with related works on Q-learning for linear quadratic optimal control problems}
+
+Q-learning for linear discrete-time systems has a relatively long history.
+A policy iteration-based Q-learning algorithm that requires an initial stabilizing feedback gain 
+has been proposed in \cite{bradtke1994adaptive} to solve the LQ regulator problem.
+This requirement has been removed in \cite{landelius1997reinforcement} by designing a value-iteration
+based Q-learning algorithm. In \cite{lewis2010reinforcement}, both policy-iteration and 
+value-iteration based algorithms have been proposed to solve the LQ regulator
+problem by output feedback.
+In \cite{kiumarsi2015optimal,rizvi2018output}, similar techniques have been used to solve the infinite-horizon 
+LQ tracking problem.
+
+Differently from \cite{bradtke1994adaptive,landelius1997reinforcement}, in this paper we deal with LQ
+optimal tracking rather than with the LQ regulator problem. On the other hand, differently from 
+\cite{lewis2010reinforcement,rizvi2018output}, wherein infinite-horizon LQ 
+problems are dealt with, herein we consider finite-horizon optimal control problems.
+Furthermore, differently from \cite{kiumarsi2015optimal}, where policy-iteration and 
+value-iteration based algorithms have been proposed to solve the deterministic LQ optimal tracking problem,
+here we propose a value function approximation method to deal with stochastic LQ optimal tracking problems
+over finite-horizon. 
+
+This novel technique is instrumental to determine a locally optimal control policy for nonlinear tracking problems.
+In fact, it is readily amenable for coupling with iterative LQ methods, thus allowing one to break the 
+complexity of nonlinear tracking problems by iteratively applying the proposed value function approximation method.
+
+\subsection{Organization of the paper}
+The rest of the paper is organized as follows. In Section \ref{sec:lqfhocp} the linear quadratic stochastic problem is formulated and recast in terms of Q-factors, suitably computed via a data-driven approximation algorithm. In Section \ref{sec:ddlqr}, 
+such a technique is coupled with iterative LQ control methods to solve a class of nonlinear optimal tracking problems in a 
+data-driven scenario. A numerical example relying on a simple pendulum is illustrated in Section \ref{sec:results}, together with more realistic simulations carried out on an industrial robot manipulator identified on the basis of real data. Finally, some conclusions and future works are gathered in Section \ref{sec:con}.
+
+\section{Approximation in value space of linear quadratic stochastic problems}\label{sec:lqfhocp}
+
+\subsection{Linear quadratic finite-horizon optimal control problem\label{ssec:lqs}}
+\label{sec:track}
+Consider the discrete-time stochastic linear system
+\begin{equation}
+x_{k+1} = A_k x_k + B_k u_k+G_kw_k,
+\label{eq:system}%
+\end{equation}
+where $k\in\N$ is a time index, $x_k\in\R^n$ is the state of the system, $u_k\in\R^m$ is the control input,
+and $w_k\in\R^p$ is a disturbance acting on the system. In particular, we assume that $\{w_k\}_{k\in\N}$ is a sequence of 
+independent random variables with mean $\bE[w_k]=\mu_k$ and variance $\mathrm{Var}[w_k]=\Sigma_k$.
+Thus, define the \emph{quadratic, finite-horizon cost function} 
+\begin{multline}\label{eq:cost}
+J(x_0,u_0,\dots,u_{N-1})
+=\bE\biggr[\sum_{k=0}^{N-1}\biggr(\Vert x_k-x_k^\diamond\Vert_{W_k} \\
++\Vert u_k-u_k^\diamond\Vert_{R_k}\biggr)+\Vert x_N-x_N^\diamond\Vert_{W_N}\biggr],
+\end{multline}
+where $N\in \N$, $W_k\in\R^{n\times n}$, $W_k\succeq 0$, $k\in\{0,\dots,N\}$, $R_k\in\R^{m\times m}$, $R_k\succ 0$, $k\in\{0,\dots,N-1\}$,
+ $\{x_k^\diamond\}_{k=0}^{N}$ is a desired trajectory for the state of~\eqref{eq:system},
+ and $\{u_k^\diamond\}_{k=0}^{N}$ is a reference control input.
+
+In order to determine a solution to the optimal control problem~\eqref{eq:system},~\eqref{eq:cost},
+it is possible to use the \emph{dynamic programming algorithm} \cite{bertsekas2005dynamic}.
+Such a procedure iteratively constructs the cost-to-go functions
+$J_\kappa^\diamond(x_\kappa) $, $\kappa=0,\dots,N$, satisfying
+\begin{multline*}
+J_\kappa^\diamond(x_\kappa):=\min_{u_\kappa,\dots,u_{N-1}} \biggr\{\bE\biggr[\sum_{k=\kappa}^{N-1}\biggr(\Vert x_k-x_k^\diamond\Vert_{W_k} \\
++\Vert u_k-u_k^\diamond\Vert_{R_k}\biggr)+\Vert x_N-x_N^\diamond\Vert_{W_N}\biggr]\biggr\}.
+\end{multline*}
+This method starts by letting \[J_N^\diamond(x_N)=\Vert x_N-x_N^\diamond\Vert_{W_N},\]
+and, going backward for $\kappa=N-1,\dots,0$, defining the \emph{Q-factor}
+\begin{multline}\label{eq:Qfactor}
+Q_\kappa(x_\kappa,u_\kappa) = \bE\biggr[\Vert x_\kappa-x_\kappa^\diamond\Vert_{W_\kappa} +\Vert u_\kappa-u_\kappa^\diamond\Vert_{R_\kappa}\\
++J_{\kappa+1}^\diamond(A_\kappa x_\kappa + B_\kappa u_\kappa+G_\kappa w_\kappa)\biggr],
+\end{multline}
+and solving the optimization problem
+\begin{equation}\label{eq:DPiteration}
+J_\kappa^\diamond(x_\kappa)=\min_{u_\kappa}Q_\kappa(x_\kappa,u_\kappa).
+\end{equation}
+
+The dynamic programming iteration~\eqref{eq:DPiteration} can be equivalently formulated in terms 
+of the Q-factors letting
+\begin{multline*}
+Q_{N-1}(x_{N-1},u_{N-1})\\
+=\bE\biggr[\Vert x_{N-1}-x_{N-1}^\diamond\Vert_{W_{N-1}}+\Vert u_{N-1}-u_{N-1}^\diamond\Vert_{R_{N-1}}\\
++\Vert A_{N-1}x_{N-1} + B_{N-1}u_{N-1} + G_{N-1}w_{N-1}-x_{N}^\diamond\Vert_{W_N}\biggr],
+\end{multline*}
+and, proceeding backward for $\kappa=N-2,\dots,0$, letting
+\begin{multline}\label{eq:DPQ}
+Q_\kappa(x_\kappa,u_\kappa) = \bE\biggr[\Vert x_\kappa-x_\kappa^\diamond\Vert_{W_\kappa} +\Vert u_\kappa-u_\kappa^\diamond\Vert_{R_\kappa}\\
++\min_{u_{\kappa+1}}Q_{\kappa+1}(A_\kappa x_\kappa + B_\kappa u_\kappa+G_\kappa w_\kappa,u_{\kappa+1})\biggr].
+\end{multline}
+With such a construction, the input solving the optimal control problem~\eqref{eq:system},~\eqref{eq:cost}
+is given by
+\begin{equation*}
+u_\kappa^\diamond=\argmin_{u_{\kappa}}Q_\kappa(x_\kappa,u_\kappa),\quad \kappa=0,\dots,N-1.
+\end{equation*}
+
+The following theorem provides the solution to the optimal control problem~\eqref{eq:system},~\eqref{eq:cost}
+obtained by using such a method.
+
+\begin{theo}[Solution to LQ stochastic problems]\label{thm:opt}
+The solution to the optimal control problem~\eqref{eq:system},~\eqref{eq:cost}
+is given by
+\begin{multline}\label{eq:optCont}
+u_\kappa^\star =-(R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1} \biggr(B_\kappa^\top P_{\kappa+1}  A_\kappa x_\kappa\\
++B_\kappa^\top P_{\kappa+1} G_\kappa\mu_\kappa+\tfrac{1}{2}B_\kappa^\top D_{\kappa+1}-R_\kappa u_\kappa^\diamond\biggr).
+\end{multline}
+where the matrices $P_\kappa\in\R^{n\times n}$, $D_\kappa\in\R^n$, and $c_\kappa\in\R$ are computed iteratively starting from
+\begin{align}\label{eq:finalMat}
+P_N&=W_N, & D_N &= -2W_N x_N^\diamond,&c_N & = x_N^{\diamond\,\top}W_Nx_N^\diamond.
+\end{align}
+and proceeding backward as
+\begin{subequations}
+\begin{align}
+&\nonumber P_\kappa  = A_\kappa^\top P_{\kappa+1}  A_\kappa +W_\kappa\\
+& -A_\kappa^\top P_{\kappa+1}B_\kappa (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1}B_\kappa^\top P_{\kappa+1}  A_\kappa,\label{eq:DRE}\\
+&\nonumber D_\kappa  = A_\kappa^\top D_{\kappa+1}  - 2 W_\kappa x_\kappa^{\diamond} +2 A_\kappa^\top P_{\kappa+1}G_\kappa \mu_\kappa \\
+&\nonumber-A_\kappa^\top P_{\kappa+1}  B_\kappa (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1} B_\kappa^\top D_{\kappa+1}\\
+&\nonumber +2 A_\kappa^\top P_{\kappa+1} B_\kappa (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1}  R_\kappa u_\kappa^\diamond\\
+& -2 A_\kappa^\top P_{\kappa+1} B_\kappa (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1}   B_\kappa^\top P_{\kappa+1} 
+G_\kappa \mu_\kappa,\\
+&\nonumber c_k  = c_{\kappa+1}+\tr(G_\kappa^\top P_{\kappa+1}G_\kappa \Sigma_\kappa)+u_\kappa^{\diamond\,\top}R_\kappa u_\kappa^\diamond\\
+&\nonumber +D_{\kappa+1}G_\kappa \mu_\kappa+ x_\kappa^{\diamond\,\top} W_\kappa x_\kappa^{\diamond}
++\mu_\kappa^\top G_\kappa^\top P_{\kappa+1}G_\kappa\mu_\kappa\\
+&\nonumber -\mu_\kappa^\top G_\kappa^\top P_{\kappa+1} B_\kappa (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1} B_\kappa^\top P_{\kappa+1} G_\kappa\mu_\kappa\\
+&\nonumber +2\mu_\kappa^\top G_\kappa^\top P_{\kappa+1} B_\kappa (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1} R_\kappa u_\kappa^\diamond\\
+&\nonumber - D_{\kappa+1}^\top B_\kappa (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1}B_\kappa^\top P_{\kappa+1}G_\kappa \mu_\kappa\\ 
+&\nonumber -\tfrac{1}{4}D_{\kappa+1}^\top B_\kappa (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1}B_\kappa^\top D_{\kappa+1}.\\
+&\nonumber +D_{\kappa+1}^\top B_\kappa (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1}R_\kappa u_\kappa^\diamond\\
+&-u_\kappa^{\diamond\,\top}R_\kappa (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1}R_\kappa u_\kappa^\diamond.
+\end{align}
+\label{eq:quadRicc}%
+\end{subequations}
+Furthermore, the cost-to-go functions $J_\kappa^\diamond(x_\kappa)$ are given by
+\begin{equation}\label{eq:ctg}
+J_\kappa^\diamond(x_\kappa)= \Vert x_\kappa \Vert_{P_\kappa} + D_\kappa^\top x_\kappa + c_\kappa.
+\end{equation}
+\end{theo}
+
+
+\begin{proof}
+The proof is carried out by induction going backward from $N$ to $0$.
+ Since $J_N^\diamond(x_N)=\Vert x_N-x_N^\diamond\Vert_{W_N}
+=(x_N-x_N^\diamond)^\top W_N (x_N-x_N^\diamond)= x_N^\top W_N x_N-2x_N^\top W_N x_N^\diamond+x_N^{\diamond\,\top}W_Nx_N^\diamond$,
+the relation given in~\eqref{eq:ctg} holds for $\kappa=N$ with the matrices given in~\eqref{eq:finalMat}.
+
+Thus, assuming that the statement holds for $\kappa+1\in\{1,\dots,N\}$ consider the dynamic programming 
+iteration~\eqref{eq:DPiteration}. 
+Note that, since~\eqref{eq:DRE} is the classical discrete-time Riccati equation and $W_\kappa\succeq 0$, 
+we have that $P_{\kappa+1}\succeq 0$.
+Letting $Q_\kappa(x_\kappa,u_\kappa)$ be as in~\eqref{eq:Qfactor}, by 
+\cite[Thm.~1.5]{seber2012linear}, one has
+\begin{align}
+\nonumber &Q_\kappa(x_\kappa,u_\kappa) = \bE\big[\Vert A_\kappa x_\kappa +B_\kappa u_\kappa+G_\kappa w_\kappa \Vert_{P_{\kappa+1}}\\ \nonumber&\qquad+D_{\kappa+1}^\top (A_\kappa x_\kappa +B_\kappa u_\kappa+G_\kappa w_\kappa) \\
+\nonumber & \qquad +c_{\kappa+1}+\Vert x_\kappa-x_\kappa^\diamond\Vert_{W_\kappa} +\Vert u_\kappa-u_\kappa^\diamond\Vert_{R_\kappa}\big]\\
+\nonumber & \quad=  x_\kappa^\top A_\kappa^\top P_{\kappa+1}  A_\kappa x_\kappa + 2  x_\kappa^\top A_\kappa^\top P_{\kappa+1}B_\kappa u_\kappa+ c_{\kappa+1}\\
+\nonumber &\qquad+ u_\kappa^\top B_\kappa^\top P_{\kappa+1}B_\kappa u_\kappa+D_{\kappa+1}^\top A_\kappa x_\kappa+D_{\kappa+1}^\top B_\kappa u_\kappa\\
+\nonumber&\qquad +x_\kappa^\top W_{\kappa} x_\kappa - 2  x_\kappa^\top W_\kappa x_\kappa^\diamond + x_\kappa^{\diamond\,\top} W_\kappa x_\kappa^{\diamond}
++u_\kappa^\top R_\kappa u_\kappa\\
+\nonumber&\qquad +\tr(G_\kappa^\top P_{\kappa+1}G_\kappa \Sigma_\kappa)+\mu_\kappa G_\kappa^\top P_{\kappa+1}G_\kappa\mu_\kappa\\
+\nonumber&\qquad + 2  x_\kappa^\top A_\kappa^\top P_{\kappa+1}G_\kappa \mu_\kappa + 2 u_\kappa^\top B_\kappa^\top P_{\kappa+1} G_\kappa\mu_\kappa\\
+&\qquad +D_{\kappa+1}^\top G_\kappa \mu_\kappa-2u_\kappa^\top R_\kappa u_\kappa^\diamond 
++u_\kappa^{\diamond\,\top} R_\kappa u_\kappa^\diamond .\label{eq:QQ}
+\end{align}
+Such a function is strictly convex with respect to $u_\kappa$ since $R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa \succ 0$.
+Hence, the unique solution to the problem $\min_{u_\kappa}Q_\kappa(x_\kappa,u_\kappa)$ is the one given in~\eqref{eq:optCont}.
+By substituting this expression in the one for $Q_\kappa(x_\kappa,u_\kappa)$, one obtains
+%\newpage
+%a
+%\newpage
+%\begin{align*}
+%  x_\kappa^\top (A_\kappa^\top P_{\kappa+1}  A_\kappa +W_\kappa)x_\kappa \\
+%  + 2  x_\kappa^\top A_\kappa^\top P_{\kappa+1}B_\kappa u_\kappa\\
+%+ u_\kappa^\top (R_\kappa + B_\kappa^\top P_{\kappa+1}B_\kappa) u_\kappa\\
+%+D_{\kappa+1}^\top A_\kappa x_\kappa\\
+%+D_{\kappa+1}^\top B_\kappa u_\kappa\\
+% - 2  x_\kappa^\top W_\kappa x_\kappa^\diamond \\
+%+ 2  x_\kappa^\top A_\kappa^\top P_{\kappa+1}G_\kappa \mu_\kappa \\
+%+ 2 u_\kappa^\top B_\kappa^\top P_{\kappa+1} G_\kappa\mu_\kappa\\
+%  + c_{\kappa+1}+\tr(G_\kappa^\top P_{\kappa+1}G_\kappa \Sigma_\kappa)+\mu_\kappa^\top G_\kappa^\top P_{\kappa+1}G_\kappa\mu_\kappa+D_{\kappa+1}G_\kappa \mu_\kappa+ x_\kappa^{\diamond\,\top} W_\kappa x_\kappa^{\diamond}\\
+%=\\
+%x_\kappa^\top (A_\kappa^\top P_{\kappa+1}  A_\kappa +W_\kappa)x_\kappa \\
+%  - 2  x_\kappa^\top A_\kappa^\top P_{\kappa+1}B_\kappa(R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1} (B_\kappa^\top P_{\kappa+1}  A_\kappa x_\kappa+B_\kappa^\top P_{\kappa+1} G_\kappa\mu_\kappa
+%  +\tfrac{1}{2}B_\kappa^\top D_{\kappa+1})\\
+%+(x_\kappa^\top A_\kappa^\top P_{\kappa+1} B_\kappa    +\mu_\kappa^\top G_\kappa^\top P_{\kappa+1} B_\kappa
+%  +\tfrac{1}{2}D_{\kappa+1}^\top B_\kappa) 
+% (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1} (B_\kappa^\top P_{\kappa+1}  A_\kappa x_\kappa+B_\kappa^\top P_{\kappa+1} G_\kappa\mu_\kappa
+%    +\tfrac{1}{2}B_\kappa^\top D_{\kappa+1})\\
+%+D_{\kappa+1}^\top A_\kappa x_\kappa\\
+%-D_{\kappa+1}^\top B_\kappa  (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1} (B_\kappa^\top P_{\kappa+1}  A_\kappa x_\kappa+B_\kappa^\top P_{\kappa+1} G_\kappa\mu_\kappa
+%    +\tfrac{1}{2}B_\kappa^\top D_{\kappa+1})\\
+% - 2  x_\kappa^\top W_\kappa x_\kappa^\diamond \\
+%+ 2  x_\kappa^\top A_\kappa^\top P_{\kappa+1}G_\kappa \mu_\kappa \\
+%- 2 (x_\kappa^\top A_\kappa^\top P_{\kappa+1} B_\kappa    +\mu_\kappa^\top G_\kappa^\top P_{\kappa+1} B_\kappa
+%  +\tfrac{1}{2}D_{\kappa+1}^\top B_\kappa) 
+% (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1}  B_\kappa^\top P_{\kappa+1} G_\kappa\mu_\kappa\\
+%  + c_{\kappa+1}+\tr(G_\kappa^\top P_{\kappa+1}G_\kappa \Sigma_\kappa)+\mu_\kappa^\top G_\kappa^\top P_{\kappa+1}G_\kappa\mu_\kappa+D_{\kappa+1}G_\kappa \mu_\kappa+ x_\kappa^{\diamond\,\top} W_\kappa x_\kappa^{\diamond}\\
+%= \\
+%x_\kappa^\top (A_\kappa^\top P_{\kappa+1}  A_\kappa +W_\kappa)x_\kappa \\
+%  - 2  x_\kappa^\top A_\kappa^\top P_{\kappa+1}B_\kappa(R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1} B_\kappa^\top P_{\kappa+1}  A_\kappa x_\kappa\\  
+%   - 2  x_\kappa^\top A_\kappa^\top P_{\kappa+1}B_\kappa(R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1} B_\kappa^\top P_{\kappa+1} G_\kappa\mu_\kappa\\    
+%     -   x_\kappa^\top A_\kappa^\top P_{\kappa+1}B_\kappa(R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1} B_\kappa^\top D_{\kappa+1}\\ 
+%+x_\kappa^\top A_\kappa^\top P_{\kappa+1} B_\kappa  (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1}B_\kappa^\top P_{\kappa+1}  A_\kappa x_\kappa\\    
+%+\mu_\kappa^\top G_\kappa^\top P_{\kappa+1} B_\kappa (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1} B_\kappa^\top P_{\kappa+1} G_\kappa\mu_\kappa\\
+%+\tfrac{1}{4}D_{\kappa+1}^\top B_\kappa (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1}B_\kappa^\top D_{\kappa+1}\\     
+%+2x_\kappa^\top A_\kappa^\top P_{\kappa+1} B_\kappa (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1}B_\kappa^\top P_{\kappa+1} G_\kappa\mu_\kappa\\
+%+x_\kappa^\top A_\kappa^\top P_{\kappa+1} B_\kappa (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1}B_\kappa^\top D_{\kappa+1}\\
+%+\mu_\kappa^\top G_\kappa^\top P_{\kappa+1} B_\kappa (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1} B_\kappa^\top D_{\kappa+1}\\
+%+D_{\kappa+1}^\top A_\kappa x_\kappa\\
+%-D_{\kappa+1}^\top B_\kappa  (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1} B_\kappa^\top P_{\kappa+1}  A_\kappa x_\kappa\\
+%-D_{\kappa+1}^\top B_\kappa  (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1} B_\kappa^\top P_{\kappa+1} G_\kappa\mu_\kappa\\
+%-\tfrac{1}{2}D_{\kappa+1}^\top B_\kappa  (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1} B_\kappa^\top D_{\kappa+1}\\
+% - 2  x_\kappa^\top W_\kappa x_\kappa^\diamond \\
+%+ 2  x_\kappa^\top A_\kappa^\top P_{\kappa+1}G_\kappa \mu_\kappa \\
+%- 2 x_\kappa^\top A_\kappa^\top P_{\kappa+1} B_\kappa  (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1}  B_\kappa^\top P_{\kappa+1} G_\kappa\mu_\kappa\\
+%- 2\mu_\kappa^\top G_\kappa^\top P_{\kappa+1} B_\kappa (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1}  B_\kappa^\top P_{\kappa+1} G_\kappa\mu_\kappa\\
+%- D_{\kappa+1}^\top B_\kappa
+% (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1}  B_\kappa^\top P_{\kappa+1} G_\kappa\mu_\kappa\\
+%  + c_{\kappa+1}+\tr(G_\kappa^\top P_{\kappa+1}G_\kappa \Sigma_\kappa)+\mu_\kappa^\top G_\kappa^\top P_{\kappa+1}G_\kappa\mu_\kappa+D_{\kappa+1}G_\kappa \mu_\kappa+ x_\kappa^{\diamond\,\top} W_\kappa x_\kappa^{\diamond}\\
+%= \\
+%x_\kappa^\top (A_\kappa^\top P_{\kappa+1}  A_\kappa +W_\kappa)x_\kappa \\
+%  -  x_\kappa^\top A_\kappa^\top P_{\kappa+1}B_\kappa(R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1} B_\kappa^\top P_{\kappa+1}  A_\kappa x_\kappa\\  
+%-\mu_\kappa^\top G_\kappa^\top P_{\kappa+1} B_\kappa (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1} B_\kappa^\top P_{\kappa+1} G_\kappa\mu_\kappa\\
+%-\tfrac{1}{4}D_{\kappa+1}^\top B_\kappa (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1}B_\kappa^\top D_{\kappa+1}\\     
+%- D_{\kappa+1}^\top B_\kappa (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1}B_\kappa^\top P_{\kappa+1}G_\kappa \mu_\kappa\\
+%+D_{\kappa+1}^\top A_\kappa x_\kappa\\
+%-D_{\kappa+1}^\top B_\kappa  (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1} B_\kappa^\top P_{\kappa+1}  A_\kappa x_\kappa\\
+% - 2  x_\kappa^\top W_\kappa x_\kappa^\diamond \\
+%+ 2  x_\kappa^\top A_\kappa^\top P_{\kappa+1}G_\kappa \mu_\kappa \\
+%- 2 x_\kappa^\top A_\kappa^\top P_{\kappa+1} B_\kappa  (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1}  B_\kappa^\top P_{\kappa+1} G_\kappa\mu_\kappa\\
+%  + c_{\kappa+1}+\tr(G_\kappa^\top P_{\kappa+1}G_\kappa \Sigma_\kappa)+\mu_\kappa G_\kappa^\top P_{\kappa+1}G_\kappa\mu_\kappa+D_{\kappa+1}G_\kappa \mu_\kappa+ x_\kappa^{\diamond\,\top} W_\kappa x_\kappa^{\diamond}\\
+%= \\
+%x_\kappa^\top (A_\kappa^\top P_{\kappa+1}  A_\kappa +W_\kappa-A_\kappa^\top P_{\kappa+1}B_\kappa(R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1} B_\kappa^\top P_{\kappa+1}  A_\kappa )x_\kappa\\     
+%+(D_{\kappa+1}^\top A_\kappa-2 x_\kappa^{\diamond\,\top} W_\kappa
+%-D_{\kappa+1}^\top B_\kappa  (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1} B_\kappa^\top P_{\kappa+1}  A_\kappa
+%+2\mu_\kappa^\top G_\kappa^\top  P_{\kappa+1}A_\kappa\\
+%-2\mu_\kappa^\top G_\kappa^\top P_{\kappa+1} B_\kappa (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1}   B_\kappa^\top  P_{\kappa+1}
+%A_\kappa) x_\kappa\\
+%  + c_{\kappa+1}+\tr(G_\kappa^\top P_{\kappa+1}G_\kappa \Sigma_\kappa)+D_{\kappa+1}G_\kappa \mu_\kappa+ x_\kappa^{\diamond\,\top} W_\kappa x_\kappa^{\diamond}\\
+%+\mu_\kappa^\top G_\kappa^\top(  P_{\kappa+1}-P_{\kappa+1} B_\kappa (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1} B_\kappa^\top P_{\kappa+1} )G_\kappa\mu_\kappa\\
+%- D_{\kappa+1}^\top B_\kappa (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1}B_\kappa^\top P_{\kappa+1}G_\kappa \mu_\kappa\\ 
+%-\tfrac{1}{4}D_{\kappa+1}^\top B_\kappa (R_\kappa+B_\kappa^\top P_{\kappa+1}B_\kappa)^{-1}B_\kappa^\top D_{\kappa+1}
+%\end{align*}
+%
+%\newpage
+%a
+%\newpage
+\begin{equation*}
+\min_{u_\kappa}Q_\kappa(x_\kappa,u_\kappa) =\Vert x_\kappa \Vert_{P_\kappa} + D_\kappa^\top x_\kappa + c_\kappa,
+\end{equation*}
+where $P_{\kappa}$, $D_{\kappa}$, and $c_\kappa$ are given by~\eqref{eq:quadRicc}, thus concluding the induction and the proof.
+\end{proof}
+
+Thus, consider the following corollary.
+
+\begin{coro}[Q-factors in LQ stochastic problems]\label{cor:Qfact}
+Define $\eta_\kappa=\col(x_\kappa, u_\kappa)$. There exist $\Theta_\kappa\in\R^{(n+m)\times (n+m)}$,
+ $\Psi_\kappa\in\R^{n+m}$ and $\phi_\kappa\in\R$ such that
+\begin{equation}\label{eq:QfacQuad}
+Q_\kappa(\eta_\kappa) = \Vert \eta_\kappa \Vert_{\Theta_\kappa} + \Psi_\kappa^\top \eta_\kappa +\phi_\kappa,
+\end{equation}
+with $\Theta_\kappa\succeq 0$,
+for $\kappa\in\{0,\dots,N-1\}$. Furthermore, if $W_\kappa \succ 0$ for $\kappa=0,\dots,N$,
+then $\Theta_0,\dots,\Theta_{N-1}\succ 0$ and
+\begin{equation}\label{eq:schurc}
+\left[\begin{array}{cc}
+\phi_\kappa & \tfrac{1}{2}\Psi_{\kappa}^\top \\ \tfrac{1}{2}\Psi_{\kappa} & \Theta_{\kappa}
+\end{array}\right] \succeq 0,\quad \kappa=0,\dots,N-1.
+\end{equation}
+\end{coro}
+
+\begin{proof}
+By~\eqref{eq:QQ}, we have that~\eqref{eq:QfacQuad} holds with
+\begin{subequations}
+\label{eq:QMatr}%
+\begin{align}
+\Theta_\kappa & = \left[\begin{array}{cc}
+W_{\kappa} +A_\kappa^\top P_{\kappa+1} A_\kappa & A_\kappa^\top P_{\kappa+1} B_\kappa\\
+B_\kappa^\top P_{\kappa+1} A_\kappa & R_\kappa+B_\kappa^\top P_{\kappa+1} B_\kappa
+\end{array}\right],\label{eq:theta}\\
+\Psi_\kappa &= \left[\begin{array}{c}
+A_\kappa^\top D_{\kappa+1} - 2 W_\kappa x_\kappa^{\diamond}+2A_\kappa^\top P_{\kappa+1} G_\kappa \mu_\kappa\\
+B_\kappa^\top  D_{\kappa+1}-2 R_\kappa u_\kappa^\diamond +2 B_\kappa^\top P_{\kappa+1}G_\kappa \mu_\kappa
+\end{array}\right],\\
+\nonumber \phi_k & = x_\kappa^{\diamond\,\top} W_\kappa x_\kappa^{\diamond}+u_\kappa^{\diamond\,\top} R_\kappa u_\kappa^\diamond+\tr( G_\kappa^\top P_{\kappa+1}G_\kappa \Sigma_k)\\
+&\quad+\mu_\kappa^\top G_\kappa^\top P_{\kappa+1}G_\kappa \mu_\kappa +D_{\kappa+1}^\top G_\kappa \mu_\kappa+ c_{\kappa+1}.
+\end{align}
+\end{subequations}
+Furthermore, note that~\eqref{eq:DRE} is the well-known discrete-time Riccati equation. Thus,
+by classical results about LQ optimal control \cite{anderson2007optimal,dorato1985optimal},
+one has $P_\kappa \succeq 0$, $\kappa=0,\dots,N$. 
+Therefore, we have that $\Theta_\kappa\succeq 0$ for $\kappa=0,\dots,N$
+since $ R_\kappa+B_\kappa^\top P_{\kappa+1} B_\kappa \succ 0$ and the Schur complement 
+of $\Theta_\kappa$ equals $P_\kappa\succeq 0$ \cite{zhang2006schur}.
+
+If, additionally, one has $W_\kappa \succ 0$, $\kappa=0,\dots,N$, then $P_\kappa\succ 0$, $\kappa=0,\dots,N$,
+thus implying that $\Theta_\kappa\succ 0$, $\kappa=0,\dots,N$, by the same reasoning given above.
+Therefore, by \eqref{eq:Qfactor} and Theorem~\ref{thm:opt}, 
+it results that $Q_\kappa(\eta_{\kappa})\geq 0$ for all $\eta_{\kappa}\in\R^{n+m}$. Hence, by completing the
+squares in~\eqref{eq:QfacQuad}, one obtains
+\begin{equation*}
+Q_\kappa(\eta_\kappa) = \Vert \eta_{\kappa}+\tfrac{1}{2} \Theta_{\kappa}^{-1}\Psi_{\kappa} \Vert_{\Theta_{\kappa}}
+-\tfrac{1}{4}\Psi_{\kappa}^\top\Theta_{\kappa}^{-1}\Psi + \phi_{\kappa},
+\end{equation*}
+which implies that $\phi_{\kappa}-\tfrac{1}{4}\Psi_{\kappa}^\top\Theta_{\kappa}^{-1}\Psi\geq 0$. Thus, the inequality
+in~\eqref{eq:schurc} follows by classical Schur complement arguments.
+\end{proof}
+
+Note that, by partitioning the matrices $\Theta_\kappa$ and $\Psi_\kappa$, $\kappa=0,\dots,N-1$, such that~\eqref{eq:QfacQuad} holds as
+\begin{align}\label{eq:partition}
+\Theta_\kappa&=\left[\begin{array}{cc}
+\Theta_{\kappa,1} & \Theta_{\kappa,2}\\
+\Theta_{\kappa,2}^\top & \Theta_{\kappa,3}
+\end{array}\right], &
+\Psi_\kappa &= \left[\begin{array}{c}
+\Psi_{\kappa,1}\\
+\Psi_{\kappa,2}
+\end{array}\right],
+\end{align}
+with $\Theta_{\kappa,1}\in\R^{n\times n}$, $\Theta_{\kappa,2}\in\R^{n\times m}$, $\Theta_{\kappa,3}\in\R^{m\times m}$, 
+$\Psi_{\kappa,1}\in\R^n$, $\Psi_{\kappa,2}\in\R^m$,
+by Corollary~\ref{cor:Qfact}, if $W_\kappa \succeq 0$ for $\kappa=0,\dots,N$, then $\Theta_{\kappa,1}\succeq 0$
+and $\Theta_{\kappa,3}\succ 0$. Furthermore, under such an hypothesis, letting $P_\kappa\in\R^{n\times n}$,
+$D_\kappa\in\R^{n}$ and $\phi\in\R$ be such that~\eqref{eq:ctg} holds, by \eqref{eq:QMatr}, it results that,  for  $\kappa=0,\dots,N-1$,
+\begin{subequations}
+\label{eq:optimMatr}%
+\begin{align}
+u_\kappa^\star&=-\Theta_{\kappa,3}^{-1}(\Theta_{\kappa,2}^\top x_\kappa+\tfrac{1}{2}\Psi_{\kappa,2}),\label{eq:optContS}\\
+P_{\kappa} & = \Theta_{\kappa,1} - \Theta_{\kappa,2}\Theta_{\kappa,3}^{-1}\Theta_{\kappa,2}^\top,\\
+D_{\kappa} & =\Psi_{\kappa,1}-\Theta_{\kappa,2}\Theta_{\kappa,3}^{-1}\Psi_{\kappa,2},\\
+c_{\kappa} & = \phi_\kappa - \tfrac{1}{4}\Psi_{\kappa,2}^\top\Theta_{\kappa,3}^{-1}\Psi_{\kappa,2}.
+\end{align}
+\end{subequations}
+
+As shown in Theorem~\ref{thm:opt} and Corollary~\ref{cor:Qfact}, the optimal policy is unaffected when the disturbances
+$\{w_k\}_{k=0}^N$ are replaced by their means $\{\mu_k\}_{k=0}^N$, i.e., the \emph{certainty equivalence} property \cite{bersekas2018reinf} 
+holds for the stochastic optimization problem~\eqref{eq:system},~\eqref{eq:cost}. In particular, as shown in~\eqref{eq:quadRicc}
+and~\eqref{eq:ctg}, the presence of $w_k$ resulted in an additional constant term $\tr(G_\kappa^\top P_{\kappa+1}G_\kappa \Sigma_\kappa)$,
+that is irrelevant for the optimal control policy. Therefore, solving the stochastic optimal control problem~\eqref{eq:system},~\eqref{eq:cost}
+is equivalent to minimize~\eqref{eq:cost} with respect to the deterministic dynamics
+\begin{equation}
+x_{k+1} = A_k x_k + B_k u_k+G_k\mu_k.
+\label{eq:systemDet}%
+\end{equation}
+Thus, define for each $\kappa\in\{0,\dots,N-1\}$ the function
+\begin{multline}
+\Omega_\kappa(x_\kappa,u_\kappa,\mu_\kappa)=\Vert x_\kappa-x_\kappa^\diamond\Vert_{W_\kappa} +\Vert u_k\Vert_{R_\kappa}\\
++J_{\kappa+1}^\diamond(A_\kappa x_\kappa + B_\kappa u_\kappa+G_\kappa \mu_\kappa),
+\end{multline}
+which is the certainty equivalent of the Q-factor $Q_\kappa$ given in~\eqref{eq:Qfactor} where $w_\kappa$ has
+been substituted by its typical value $\mu_\kappa$, and consider the following corollary.
+
+\begin{coro}[Certainty equivalent of Q-factors in LQ problems]\label{cor:certEq}
+Let $\zeta_\kappa=\col(x_\kappa, u_\kappa,\mu_k)$. There exist $\Pi_\kappa\in\R^{(n+m+p)\times (n+m+p)}$,
+ $\Gamma_\kappa\in\R^{n+m+p}$ and $\sigma_\kappa\in\R$ such that
+\begin{equation}\label{eq:WfacQuad}
+\Omega_\kappa(\zeta_\kappa) = \Vert \zeta_\kappa \Vert_{\Pi_\kappa} + \Gamma_\kappa^\top \zeta_\kappa +\sigma_\kappa,\quad \kappa\in\{0,\dots,N-1\}.
+\end{equation}
+\end{coro}
+\begin{proof}
+Following the same construction used in the proof of Theorem~\ref{thm:opt}, one has that 
+\begin{align}
+\nonumber &\Omega_\kappa(x_\kappa,u_\kappa,\mu_\kappa) =  
+x_\kappa^\top A_\kappa^\top P_{\kappa+1}  A_\kappa x_\kappa + 2  x_\kappa^\top A_\kappa^\top P_{\kappa+1}B_\kappa u_\kappa\\
+\nonumber &\qquad+ u_\kappa^\top B_\kappa^\top P_{\kappa+1}B_\kappa u_\kappa+D_{\kappa+1}^\top A_\kappa x_\kappa+D_{\kappa+1}^\top B_\kappa u_\kappa\\
+\nonumber&\qquad +x_\kappa^\top W_{\kappa} x_\kappa - 2  x_\kappa^\top W_\kappa x_\kappa^\diamond + x_\kappa^{\diamond\,\top} W_\kappa x_\kappa^{\diamond}
++u_\kappa^\top R_\kappa u_\kappa\\
+\nonumber&\qquad +\mu_\kappa G_\kappa^\top P_{\kappa+1}G_\kappa\mu_\kappa+D_{\kappa+1}^\top G_\kappa \mu_\kappa+ c_{\kappa+1}\\
+&\qquad + 2  x_\kappa^\top A_\kappa^\top P_{\kappa+1}G_\kappa \mu_\kappa + 2 u_\kappa^\top B_\kappa^\top P_{\kappa+1} G_\kappa\mu_\kappa.\label{eq:WW}
+\end{align}
+Therefore, we have that \eqref{eq:WfacQuad} holds with
+\begin{align*}
+\Pi_\kappa & = \left[\begin{array}{cc}
+\Theta_\kappa  & 
+\begin{array}{c}
+A_\kappa^\top P_{\kappa+1}G_\kappa \\
+B_\kappa^\top P_{\kappa+1}  G_\kappa
+\end{array}
+\\
+\begin{array}{cc}
+G_\kappa^\top P_{\kappa+1} A_\kappa & G_\kappa^\top P_{\kappa+1} B_\kappa
+\end{array} &  G_\kappa^\top P_{\kappa+1}G_\kappa \\
+\end{array}\right],\\
+\Gamma_\kappa &= \left[\begin{array}{c}
+A_\kappa^\top D_{\kappa+1} - 2 W_\kappa x_\kappa^{\diamond}\\
+B_\kappa^\top  D_{\kappa+1} - 2 R_\kappa u_\kappa^{\diamond}\\
+G_\kappa^\top D_{\kappa+1}\\
+\end{array}\right],\\
+\sigma_k & = x_\kappa^{\diamond\,\top} W_\kappa x_\kappa^{\diamond}+u_\kappa^{\diamond\,\top} R_\kappa u_\kappa^\diamond+c_{\kappa+1},
+\end{align*}
+where $\Theta_\kappa$ is as in~\eqref{eq:theta}. 
+\end{proof}
+
+Although Corollary~\ref{cor:certEq} is of theoretical interest (namely, it shows that the certainty equivalent
+of the Q-factor of the optimal control problem~\eqref{eq:system},~\eqref{eq:cost} is a quadratic function
+in $x_\kappa$, $u_\kappa$, and $\mu_\kappa$), it cannot be directly used in practice due to the fact that
+the values $\mu_\kappa$ are not usually known.
+Therefore, in the following section, the parametrization given in Corollary~\ref{cor:Qfact} is rather employed 
+so as to determine a solution to the stochastic optimal control problem~\eqref{eq:system},~\eqref{eq:cost} in a model-free scenario.
+
+\subsection{Approximation of the Q-factors\label{ssec:qfacappr}}
+
+In this section, we propose a technique to approximate the Q-factors
+of linear quadratic stochastic control problems. Assume to have at one's disposal state-control-successor triplets
+$(x_\kappa^{(i)},u_{\kappa}^{(i)},x_{\kappa+1}^{(i)})$, where $i\in\{1,\dots,S\}$ denotes the experiment number and $\kappa\in\{0,\dots,N-1\}$ 
+denotes the discrete-time in the $i$-th experiment, with \[x_{\kappa+1}^{(i)}=A_\kappa x_\kappa^{(i)}+B_{\kappa}u_{\kappa}^{(i)},\] for 
+$i=1,\dots,S$ and $\kappa=0,\dots,N-1$. In view of the results given in Section~\ref{ssec:lqs}, the following 
+Algorithm~\ref{alg:appQ} allows one to approximate the Q-factors on the basis of the available data.
+\begin{algorithm}[H]
+\caption{Data-driven approximation of the Q-factors\label{alg:appQ}}
+\begin{algorithmic}[1]
+\REQUIRE state-control-successor triplets $(x_\kappa^{(i)},u_{\kappa}^{(i)},x_{\kappa+1}^{(i)})$, $i\in\{1,\dots,S\}$, 
+$\kappa\in\{0,\dots,N-1\}$, reference signals $\{u_\kappa^\diamond\}_{\kappa=0}^{N-1}$ and $\{x_\kappa^\diamond\}_{\kappa=0}^{N}$, weights 
+$\{W_\kappa\}_{\kappa=0}^{N}$ and $\{R_\kappa\}_{\kappa=0}^{N-1}$
+\ENSURE estimates of the Q-factors $Q_\kappa$, $\kappa=0,\dots,N-1$
+\STATE for $i=1,\dots,S$, define
+	\begin{multline}\label{eq:gammaN1}
+	\gamma_{N-1}^{(i)}:=\Vert x_{N-1}^{(i)}-x_{N-1}^\diamond\Vert_{W_{N-1}}\\+\Vert u_{N-1}^{(i)}-u_{N-1}^\diamond\Vert_{R_{N-1}}
+		+\Vert x_{N}^{(i)}-x_{N}^\diamond\Vert_{W_N}
+	\end{multline}
+\STATE let $\eta_{N-1}^{(i)}:=\col(x_{N-1}^{(i)},u_{N-1}^{(i)})$, $i=1,\dots,S$
+\STATE letting $\Theta_{N-1}$ be partitioned as in~\eqref{eq:partition}, solve the problem
+	\begin{align}
+\hspace{-1ex}	\nonumber \min\,&\sum_{i=1}^{S} \left(\Vert \eta_{N-1}^{(i)} \Vert_{\Theta_{N-1}}
+	+\Psi_{N-1}^\top \eta_{N-1}^{(i)} + \phi_{N-1}-\gamma_{N-1}^{(i)}\right)\\
+\hspace{-1ex}	\text{with }\,&\Theta_{N-1,3} \succ 0, \qquad \Theta_{N-1} \succeq 0\label{eq:probN1}
+		\end{align}
+\STATE letting $\Theta_{N-1}$ and $\Psi_{N-1}$ be partitioned as in~\eqref{eq:partition}, let
+	 \begin{align*}
+	 P_{N-1} & = \Theta_{N-1,1} - \Theta_{N-1,2}\Theta_{N-1,3}^{-1}\Theta_{N-1,2}^\top,\\
+	 D_{N-1} & =\Psi_{N-1,1}-\Theta_{N-1,2}\Theta_{N-1,3}^{-1}\Psi_{N-1,2},\\
+	 c_{N-1} & = \phi_{N-1} - \tfrac{1}{4}\Psi_{N-1,2}^\top\Theta_{N-1,3}^{-1}\Psi_{N-1,2}.
+	 \end{align*}
+\FOR{$\kappa=N-2$ \TO $0$}
+	\STATE for $i=1,\dots,S$, define
+		\begin{multline}\label{eq:gammak}
+		\gamma_{\kappa}^{(i)}:=\Vert x_{\kappa}^{(i)}-x_{\kappa}^\diamond\Vert_{W_{\kappa}}+\Vert u_{\kappa}^{(i)}-u_{\kappa}^\diamond\Vert_{R_{\kappa}}\\
+			+\Vert x_{\kappa+1}^{(i)}\Vert_{P_{\kappa+1}}+D_{\kappa+1}^\top x_{\kappa+1}^{(i)}+c_{\kappa+1}
+		\end{multline}
+	 \STATE let $\eta_{\kappa}^{(i)}:=\col(x_{\kappa}^{(i)},u_{\kappa}^{(i)})$, $i=1,\dots,S$
+	 \STATE letting $\Theta_{\kappa}$ be partitioned as in~\eqref{eq:partition}, solve the problem
+	 	\begin{align}
+	 	\nonumber \min\,&\sum_{i=1}^{S} \left(\Vert \eta_{\kappa}^{(i)} \Vert_{\Theta_{\kappa}}
+	 	+\Psi_{\kappa}^\top \eta_{\kappa}^{(i)} + \phi_{\kappa}-\gamma_{\kappa}^{(i)}\right)\\
+	 	\text{with }\,&\Theta_{\kappa,3} \succ 0, \qquad \Theta_{\kappa} \succeq 0\label{eq:probk}
+	 		\end{align}
+	 	\STATE letting $\Theta_{\kappa}$ and $\Psi_{\kappa}$ be partitioned as in~\eqref{eq:partition}, let
+	 		\begin{align*}
+	 		P_{\kappa} & = \Theta_{\kappa,1} - \Theta_{\kappa,2}\Theta_{\kappa,3}^{-1}\Theta_{\kappa,2}^\top,\\
+	 		D_{\kappa} & =\Psi_{\kappa,1}-\Theta_{\kappa,2}\Theta_{\kappa,3}^{-1}\Psi_{\kappa,2},\\
+	 		c_{\kappa} & = \phi_\kappa - \tfrac{1}{4}\Psi_{\kappa,2}^\top\Theta_{\kappa,3}^{-1}\Psi_{\kappa,2}.
+	 		\end{align*}
+\ENDFOR
+\RETURN $Q_\kappa(\eta_\kappa) = \Vert \eta_\kappa \Vert_{\Theta_\kappa} + \Psi_\kappa^\top \eta_\kappa +\phi_\kappa$, $\kappa=0,\dots,N-1$
+\end{algorithmic}
+\end{algorithm}
+
+In fact, letting $\eta_\kappa^{(i)}=\col(x_{\kappa}^{(i)},u_\kappa^{(i)})$, $\kappa=0,\dots,N-1$, $i=1,\dots,S$, by~\eqref{eq:Qfactor},~\eqref{eq:ctg}, and~\eqref{eq:optimMatr},
+letting $\gamma_{N-1}^{(i)}$ and $\gamma_{\kappa}^{(i)}$ be defined as in~\eqref{eq:gammaN1} and~\eqref{eq:gammak},
+respectively, it results that 
+\begin{align*}
+\gamma_{N-1}^{(i)} &= Q_{N-1}(\eta_{N-1}^{(i)}),\\
+\gamma_{\kappa}^{(i)} &= Q_{\kappa}(\eta_{\kappa}^{(i)}),&\kappa=0,\dots,N-2.
+\end{align*}
+Therefore, the Q-factors $Q_0,\dots,Q_{N-1}$ can be gathered by solving the mean square optimization problems~\eqref{eq:probN1}
+and~\eqref{eq:probk}; see also \cite[Sec.~2.1.4]{bersekas2018reinf}. Once these Q-factors have been obtained, letting
+$\Theta_\kappa$ and $\Psi_\kappa$ be partitioned as in~\eqref{eq:partition}, the optimal control is given by~\eqref{eq:optContS}.
+
+\begin{remm}[Relation with NAF]
+Algorithm~\ref{alg:appQ} can be viewed as a particular instance of the \emph{normalized advantage function
+method} (briefly, NAF) firstly given in \cite{gu2016continuous} and used in \cite{sangiovanni2018deep} to design
+a control law for a robotic manipulator. In fact, by partitioning the matrices $\Theta_\kappa$ and $\Psi_{\kappa}$ as
+in~\eqref{eq:partition}, since
+\begin{multline*}
+Q_\kappa(x_\kappa,u_\kappa)=x_\kappa^\top \Theta_{\kappa,1} x_\kappa+ 2 x_\kappa^\top \Theta_{\kappa,2} u_\kappa
++u_\kappa^\top \Theta_{\kappa,3} u_\kappa \\
++ \Psi_{\kappa,1}^\top x_\kappa + \Psi_{\kappa,2}^\top u_\kappa + \phi_\kappa,
+\end{multline*}
+by completing the squares \cite{meyer2000matrix} with respect to $u_\kappa$, one obtains
+\begin{multline*}
+Q_\kappa(x_\kappa,u_\kappa)=\Vert u_\kappa + \Theta_{\kappa,3}^{-1}(\Theta_{\kappa,2}^\top x_\kappa + \tfrac{1}{2}\Psi_{\kappa,2})\Vert_{\Theta_{\kappa,3}}\\
+-\Vert \Theta_{\kappa,2}^\top x_\kappa + \tfrac{1}{2}\Psi_{\kappa,2}\Vert_{\Theta_{\kappa,3}^{-1}}+
+x_\kappa^\top \Theta_{\kappa,1} x_\kappa + \Psi_{\kappa,1}^\top x_\kappa + \phi_\kappa.
+\end{multline*}
+Therefore, by defining the \emph{advantage functions}
+\begin{equation*}
+A_\kappa(x_\kappa,u_\kappa):=Q_\kappa(x_\kappa,u_\kappa)-J_\kappa^\diamond(x_\kappa),
+\end{equation*}
+for $\kappa=0,\dots,N-1$, by~\eqref{eq:optimMatr}, one obtains that
+\begin{equation*}
+A_\kappa(x_\kappa,u_\kappa)=\Vert u_\kappa + \Theta_{\kappa,3}^{-1}(\Theta_{\kappa,2}^\top x_\kappa + \tfrac{1}{2}\Psi_{\kappa,2})\Vert_{\Theta_{\kappa,3}}.
+\end{equation*}
+Therefore, Algorithm~\ref{alg:appQ} essentially consists in a NAF with policies being affine in the state.
+In turn, this implies that NAFs capable of generating affine policies can solve exactly linear quadratic stochastic optimization problems.
+\end{remm}
+
+\begin{remm}(Additional constraints in the optimization)\label{rem:addcon}
+By Corollary~\ref{cor:Qfact}, if the matrices $W_0,\dots,W_N$ are positive definite, it is possible to add additional constraints
+to the optimization problems~\eqref{eq:probN1} and~\eqref{eq:probk} so to improve the effectiveness of the approximation. 
+Namely, if $W_\kappa\succ 0$, $\kappa=0,\dots,N$, then it is possible
+to substitute problems~\eqref{eq:probN1} and~\eqref{eq:probk} with
+\begin{align*}
+\min\,&\sum_{i=1}^{S} \left(\Vert \eta_{\kappa}^{(i)} \Vert_{\Theta_{\kappa}}
+	+\Psi_{\kappa}^\top \eta_{\kappa}^{(i)} + \phi_{\kappa}-\gamma_{\kappa}^{(i)}\right),\\
+\text{with }\,&\Theta_{\kappa,3} \succ 0,\qquad\Theta_{\kappa} \succ 0,\qquad\left[\begin{array}{cc}
+\phi_{\kappa} & \tfrac{1}{2}\Psi_{\kappa}^\top \\ \tfrac{1}{2}\Psi_{\kappa} & \Theta_{\kappa}\\
+\end{array}\right] \succeq 0,
+		\end{align*}
+for $\kappa=N-1,N-2,\dots,0$.
+\end{remm}
+\section{Data-driven iterative\\ linear quadratic control}
+\label{sec:ddlqr}
+In this section, we show how Algorithm~\ref{alg:appQ} can be coupled with the techniques given in \cite{li2004iterative}
+ to solve a class of nonlinear optimal control problem.
+Namely, consider the system
+\begin{equation}\label{eq:nonlinPlant}
+\xi_{k+1}=f_k(\xi_k,\nu_k),
+\end{equation}
+with $\xi_k\in\R^n$ being the state, $\nu_k\in\R^m$ being the control input, 
+$f_k:\R^n\times \R^m\rightarrow\R^n$ being continuously differentiable functions, $k=0,\dots,N-1$,
+and the cost function
+\begin{equation}\label{eq:trackingCost}
+\Phi = \sum_{k=0}^{N-1}\left(\Vert \xi_{k}-\xi_k^\diamond\Vert_{W_k}+\Vert \nu_k \Vert_{R_k}\right)+\Vert \xi_{N}-\xi_N^\diamond\Vert_{W_N},
+\end{equation}
+where $N\in \N$, $R_k\succ 0$, $k\in\{0,\dots,N-1\}$, $W_k\succeq 0$, $k\in\{0,\dots,N\}$, 
+and $\{\xi_k^\diamond\}_{k=0}^N$ is a given reference signal.
+By coupling Algorithm~\ref{alg:appQ} with the techniques given in \cite{li2004iterative}, the following Algorithm~\ref{alg:iLQR}
+allows us to determine a locally optimal solution to the optimal control problem~\eqref{eq:nonlinPlant},~\eqref{eq:trackingCost}
+from the initial condition $\xi_0\in\R^n$ in a data-driven setting.
+
+\begin{algorithm}[htb!]
+\caption{Data-driven iterative linear quadratic control\label{alg:iLQR}}
+\begin{algorithmic}[1]
+\REQUIRE initial condition $\xi_0$,
+weights $\{W_\kappa\}_{\kappa=0}^{N}$ and $\{R_\kappa\}_{\kappa=0}^{N-1}$, 
+reference signal $\{\xi_k^\diamond\}_{k=0}^N$,
+initial guess $\{\bar{\nu}_\kappa\}_{\kappa=0}^{N-1}$ on the optimal solution to~\eqref{eq:nonlinPlant},~\eqref{eq:trackingCost},
+number $S\in\N$ of experiments to perform the approximation
+\ENSURE a locally optimal control sequence for~\eqref{eq:nonlinPlant},~\eqref{eq:trackingCost} 
+\REPEAT
+\STATE \label{step:baseline}compute for $\kappa=0,\dots,N-1$, 
+	\begin{equation*}
+	\bar{\xi}_{\kappa+1}=f_\kappa(\bar{\xi}_{\kappa},\bar{\nu}_{\kappa}),
+	\end{equation*}
+	starting from the initial condition $\bar{\xi}_0=\xi_0$ and let 
+	\begin{equation*}
+	\bar{\Phi}=\sum_{k=0}^{N-1}(\Vert \bar{\xi}_{k}-\xi_k^\diamond\Vert_{W_k}+\Vert \bar{\nu}_k \Vert_{R_k})+\Vert \bar{\xi}_{N}-\xi_N^\diamond\Vert_{W_N}
+	\end{equation*}
+	\STATE let $x_\kappa^\diamond = \xi_k^\diamond-\bar{\xi}_\kappa$, $\kappa=0,\dots,N$
+	\STATE let $u_\kappa^\diamond = -\bar{\nu}_\kappa$, $\kappa=0,\dots,N-1$
+	\FOR{$i=1$ \TO $S$}
+		\STATE pick sufficiently small $\Delta \xi_0^{(i)},\Delta \nu_0^{(i)},\dots,\Delta \nu_{N-1}^{(i)}$
+		\STATE \label{step:randSamp}compute for $\kappa=0,\dots,N-1$
+		\begin{equation*}
+		\xi_{\kappa+1}^{(i)}=f_\kappa({\xi}_{\kappa}^{(i)},\bar{\nu}_{\kappa}+\Delta \nu_{\kappa}^{(i)}),
+		\end{equation*}
+		starting from the initial condition ${\xi}_0^{(i)}=\xi_0+\Delta \xi_0^{(i)}$
+		\STATE let $x_\kappa^{(i)}=\xi_{\kappa}^{(i)}-\bar{\xi}_{\kappa}$, $\kappa=0,\dots,N$
+		\STATE \label{step:deltau}let $u_\kappa^{(i)}=\Delta \nu_\kappa^{(i)}$, $\kappa=0,\dots,N-1$ 
+	\ENDFOR
+	\STATE use Algorithm~\ref{alg:appQ} with the data gathered in Steps~\ref{step:baseline}--\ref{step:deltau} to compute $\Theta_{\kappa}$, $\Psi_{\kappa}$, and $\phi_{\kappa}$, $\kappa=0,\dots,N-1$\label{step:appr}
+	\STATE \label{step:improved}letting $\Theta_{\kappa}$ and $\Psi_{\kappa}$ be partitioned as in~\eqref{eq:partition}, compute 
+		\begin{equation*}
+		\hat{\xi}_{\kappa+1}=f_\kappa\left(\hat{\xi}_{\kappa},\bar{\nu}_{\kappa}-\Theta_{\kappa,3}^{-1}\left(\Theta_{\kappa,2}^\top (\hat{\xi}_{\kappa}-\bar{\xi}_{\kappa})+\tfrac{1}{2}\Psi_{\kappa,2}\right)\right),
+		\end{equation*}
+		 $\kappa=0,\dots,N-1$, starting from $\hat{\xi}_0=\xi_0$ and let 
+		\begin{multline*}
+		\hat{\Phi}=\Vert \hat{\xi}_{N}-\xi_N^\diamond\Vert_{W_N}+\sum_{k=0}^{N-1}\bigg(\Vert \hat{\xi}_{k}-\xi_k^\diamond\Vert_{W_k}\\
+		+\Vert \bar{\nu}_{k}-\Theta_{k,3}^{-1}(\Theta_{k,2}^\top (\hat{\xi}_{k}-\bar{\xi}_{k})+\tfrac{1}{2}\Psi_{k,2}) \Vert_{R_k}\bigg)
+		\end{multline*}
+	\IF{$\hat{\Phi}<\bar{\Phi}$}
+		\STATE\label{step:assing} assign $\bar{\nu}_\kappa\leftarrow\bar{\nu}_{\kappa}-\Theta_{\kappa,3}^{-1}(\Theta_{\kappa,2}^\top (\hat{\xi}_{\kappa}-\bar{\xi}_{\kappa})+\tfrac{1}{2}\Psi_{\kappa,2})$, $\kappa=0,\dots,N-1$
+	\ENDIF
+\UNTIL $\hat{\Phi}<\bar{\Phi}$
+\RETURN $\{\bar{\nu}_\kappa\}_{\kappa=0}^{N-1}$
+\end{algorithmic}
+\end{algorithm}
+
+In fact, following the construction in~\cite{li2004iterative}, Algorithm~\ref{alg:iLQR}
+iterates the next procedure until convergence. Letting $\{\bar{\xi}_\kappa\}_{\kappa=0}^{N}$ be a nominal trajectory
+of system~\eqref{eq:nonlinPlant} corresponding to the control sequence $\{\bar{\nu}_\kappa\}_{\kappa=0}^{N-1}$, the linearization
+of system~\eqref{eq:nonlinPlant} about $\{(\bar{\xi}_\kappa,\bar{\nu}_{\kappa})\}_{\kappa=0}^{N-1}$ is given by~\eqref{eq:system} with
+\begin{subequations}
+\begin{align}
+A_k &=\left.\frac{\partial f_k(\xi_k,\nu_k)}{\partial \xi_k}\right|_{\xi_k=\bar{\xi}_k,\,\nu_k=\bar{\nu}_k},\\
+B_k&=\left.\frac{\partial f_k(\xi_k,\nu_k)}{\partial \nu_k}\right|_{\xi_k=\bar{\xi}_k,\,\nu_k=\bar{\nu}_k}.
+\end{align}
+\label{eq:linearized}%
+\end{subequations}
+Furthermore, letting $x_k$ and $u_k$ denote the increment with respect to $\bar{\xi}_\kappa$ and $\bar{\nu}_{\kappa}$, respectively, 
+$k=0,\dots,N-1$, the corresponding
+value of the cost function $\Phi$ given in~\eqref{eq:trackingCost} is
+\begin{multline}\label{eq:newCost}
+\Phi = \sum_{k=0}^{N-1}\left(\Vert x_k-(\xi_k^\diamond-\bar{\xi}_{k})\Vert_{W_k}+\Vert u_k-(-\bar{\nu}_k) \Vert_{R_k}\right)\\
++\Vert x_N-(\xi_N^\diamond-\bar{\xi}_{N})\Vert_{W_N}.
+\end{multline}
+Therefore, Steps~\ref{step:baseline}--\ref{step:appr} of Algorithm~\ref{alg:iLQR} perform a data-driven approximation of the Q-factors
+of the optimal control problem~\eqref{eq:linearized},~\eqref{eq:newCost} using the results given in Section~\ref{sec:track}. 
+Then, Step~\ref{step:improved} of Algorithm~\ref{alg:iLQR} determines an improved control sequence using the solution to the problem~\eqref{eq:linearized},~\eqref{eq:newCost}.
+
+\begin{remm}[Data-driven scenario]
+Algorithm~\ref{alg:iLQR} can be used even if a closed-form for the functions $f_0,\dots,f_{N-1}$
+is not available. In fact, such functions are used in Steps~\ref{step:baseline},~\ref{step:randSamp}, and~\ref{step:improved}
+to generate state-control-successor triplets to be fed to Algorithm~\ref{alg:appQ}. However, the same steps can be carried out
+either performing experiments or simulating the behavior of system~\eqref{eq:nonlinPlant} in a purely data-driven setting.
+\end{remm}
+
+\begin{remm}[Levenberg-Marquardt adaptation of the step-size]\label{rem:LMa}
+Following \cite{1469949}, it is possible to improve the convergence of Algorithm~\ref{alg:iLQR}
+by using a method related to the Levenberg-Marquardt algorithm \cite{levenberg1944method,marquardt1963algorithm}:
+by defining an additional positive parameter $\lambda$ and letting $\overline{\lambda}$ be its upper bound
+(which essentially governs the minimum step size),
+we can substitute Step~\ref{step:improved} of Algorithm~\ref{alg:iLQR} with the following procedure:
+
+\begin{algorithmic}[1]
+\STATE compute an eigenvalue decomposition of $\Theta_{\kappa,3}= V D V^\top$, with $D$ being a nonnegative diagonal matrix
+\REPEAT
+	\STATE let $\Upsilon= V (D+\lambda I) V^\top$
+	\STATE letting $\Theta_{\kappa}$ and $\Psi_{\kappa}$ be partitioned as in~\eqref{eq:partition}, compute 
+			\begin{equation*}
+			\hat{\xi}_{\kappa+1}=f_\kappa\left(\hat{\xi}_{\kappa},\bar{\nu}_{\kappa}-\Upsilon^{-1}\left(\Theta_{\kappa,2}^\top (\hat{\xi}_{\kappa}-\bar{\xi}_{\kappa})+\tfrac{1}{2}\Psi_{\kappa,2}\right)\right),
+			\end{equation*}
+			 $\kappa=0,\dots,N-1$, starting from $\hat{\xi}_0=\xi_0$ and let 
+			\begin{multline*}
+			\hat{\Phi}=\Vert \hat{\xi}_{N}-\xi_N^\diamond\Vert_{W_N}+\sum_{k=0}^{N-1}\bigg(\Vert \hat{\xi}_{k}-\xi_k^\diamond\Vert_{W_k}\\
+			+\Vert \bar{\nu}_{k}-\Theta_{k,3}^{-1}(\Theta_{k,2}^\top (\hat{\xi}_{k}-\bar{\xi}_{k})+\tfrac{1}{2}\Psi_{k,2}) \Vert_{R_k}\bigg)
+			\end{multline*}
+		\IF{$\lambda < \overline{\lambda}$}
+			\STATE assign $\lambda \leftarrow 2 \lambda$
+		\ELSE
+			\STATE assign $\lambda \leftarrow \frac{1}{2}\lambda$
+		\ENDIF
+\UNTIL $\hat{\Phi}>\bar{\Phi}$ \AND $\lambda < \overline{\lambda}$
+\end{algorithmic}
+
+\noindent As shown in \cite{1469949}, if $\lambda$ is close to zero, then we have a Newton method using the true Hessian
+of the optimization problem, whereas, if $\lambda$ is large, then the Hessian of the optimization problem is replaced by $\lambda I$,
+that is the algorithm takes small steps in the direction of the gradient. This procedure has been proved empirically to perform better 
+than the plain Algorithm~\ref{alg:iLQR} in terms of robustness and convergence speed\footnote{A Matlab package implementing
+this procedure is available at the link:
+\begin{center}
+\url{https://github.com/Corrado-possieri/iterative_LQ_Qlearning}.
+\end{center}
+At the same link, all the Matlab code that has been used to carry out the simulations reported in Section~\ref{sec:results}
+is made available.
+}.
+\end{remm}
+
+\begin{remm}[Locally optimal policy]\label{rem:localpol}
+Algorithm~\ref{alg:iLQR} can be used also to generate a policy that locally solves the optimal 
+control problem~\eqref{eq:nonlinPlant},~\eqref{eq:newCost}. In fact, 
+letting $\{\Theta_\kappa\}_{\kappa=0}^{N-1}$ and $\{\Psi_{\kappa}\}_{\kappa=0}^{N-1}$ 
+be the matrices computed at Step~\ref{step:appr} of Algorithm~\ref{alg:iLQR} partitioned as in~\eqref{eq:partition}, 
+and letting $\{\bar{\xi}_\kappa\}_{\kappa=0}^{N-1}$ be the solution to system~\eqref{eq:nonlinPlant} with input $\{\bar{\nu}_{\kappa}\}_{\kappa=0}^{N-1}$, the control policy $\pi=\{\pi_0,\dots,\pi_{N-1} \}$,
+\begin{equation*}
+\pi_\kappa(\xi_\kappa) = \bar{\nu}_{\kappa}-\Theta_{\kappa,3}^{-1}\left(\Theta_{\kappa,2}^\top ({\xi}_{\kappa}-\bar{\xi}_{\kappa})+\tfrac{1}{2}\Psi_{\kappa,2}\right),
+\end{equation*}
+$\kappa=0,\dots,N-1$, constitute a local solution to~\eqref{eq:nonlinPlant},~\eqref{eq:newCost}.
+\end{remm}
+
+\section{Numerical examples}\label{sec:results}
+Two numerical examples are reported to assess the proposal. More specifically, a simple pendulum and a realistic robot manipulator are simulated to solve a nonlinear quadratic control problem in a data-driven setting, as discussed in Section \ref{sec:ddlqr}.
+
+\subsection{Simple pendulum}
+Consider a simple pendulum with the following model
+\begin{equation}
+\label{eq:pend}
+\begin{aligned}
+\dot{\xi}_1 &=  \xi_2,\\
+\dot{\xi}_2 &=  \frac{g}{\ell}\sin \xi_1-\frac{k}{m\ell^2}\xi_2+\frac{1}{m\ell^2}\nu,
+\end{aligned}
+\end{equation}
+where $\xi=[\begin{array}{cc}
+\xi_1 & \xi_2
+\end{array}]^\top$ is the vector of angular position and velocity, $\ell=\SI{1}{\meter}$ is the length of the pendulum, $g=\SI{9.81}{\meter\per\square\second}$, $m=\SI{1}{\kilogram}$ is the pendulum mass concentrated on the tip, $k=\SI{0.01}{\kilogram\square\meter\per\second}$ is the friction coefficient, while $\nu$ is the input torque. 
+Since the proposed approach is applied to discrete problems, we used the ode45 solver, maintaining the input constant for a time $T=\SI{1}{\second}$. According to Algorithm~\ref{alg:iLQR}, the initial conditions are set equal to $\xi_0=[\begin{array}{cc}
+0 & 0
+\end{array}]^\top$, the weights are $W_\kappa=\num{1e-3} I$, $W_N=I$ and $R_\kappa=\num{1e-5}I$, while the desired target is $\xi_k^\diamond = [\begin{array}{cc}
+\pi &  0
+\end{array}]^\top$. The horizon is set equal to $N=3$, the initial input guess is instead $\{\bar{\nu}_\kappa\}_{\kappa=0}^{N-1}=\{
+1 ,-6 ,8 \}$, and the number of experiments to perform the approximation of Q-factors is $S=\num{100}$.
+
+Several properties of the proposed algorithm can be observed. First of all,  in Figure \ref{fig:cost_pend} the effectiveness of the proposed data-driven controller is testified by the fact that the value of the cost function $\Phi$ is minimized in few iterations. It is worth stressing again that, exploiting Algorithm \ref{alg:appQ}, the control policy is achieved by Algorithm \ref{alg:iLQR} as in Remark \ref{rem:localpol} via a data-driven approximation of the Q-factors. In Figure \ref{fig:result_pend}, instead, the time evolution of the states is illustrated. More specifically, the dashed lines represent the case when the initial guess is given as input and the states do not reach the target points (indicated as stars). On the other hand, the solid lines refer to the case when, after few iterations, the learning procedure converges and the states exactly reach the desired positions. Correspondingly,  the input sequences are also reported in Figure \ref{fig:result_pend}. Again, the dashed line is the initial guess  (namely, $\bar{\nu}_\kappa$),  while the solid line represents the local optimal control (namely, $\nu_\kappa^{\star}$), generated as outcome of Algorithm \ref{alg:iLQR}.
+\begin{figure}[htb!]
+\center
+\includegraphics[width=0.9\columnwidth]{figs/fig2}
+\caption{Logarithmic value of the cost function $\Phi$ for the pendulum example}
+\label{fig:cost_pend}
+\end{figure}
+\begin{figure}[htb!]
+\center
+\includegraphics[width=0.9\columnwidth]{figs/fig3}
+\caption{Results of the numerical simulations carried out on the simple pendulum when the initial guess input is used (dashed lines) and when the data-driven based optimal control (solid lines) is applied}
+\label{fig:result_pend}
+\end{figure}
+
+
+\subsection{Robot manipulator}
+Inspired by \cite{sangiovanni2018deep}, where, motivated by the uncertain nature of the plant, deep reinforcement learning methods with NAF have been applied to robot manipulators, hereafter the assessment of the proposed algorithm is carried out relying on a model of a Comau Smart3-S2 robot (see Figure \ref{fig:robot}), identified on the basis of real data.
+
+\begin{figure}[htb!]
+\center
+\subfigure[]{
+\includegraphics[width=0.3\columnwidth]{figs/fig1}
+}
+\subfigure[]{
+\centering
+\newcommand{\nvar}[2]{%
+    \newlength{#1}
+    \setlength{#1}{#2}
+}
+
+
+\nvar{\dg}{0.3cm}
+\def\dw{0.25}\def\dh{0.5}
+\nvar{\ddx}{1.5cm}
+
+
+\def\link{\draw [double distance=1.5mm, very thick] (0,0)--}
+\def\joint{%
+    \filldraw [fill=white] (0,0) circle (5pt);
+    \fill[black] circle (2pt);
+}
+\def\grip{%
+    \draw[ultra thick](0cm,\dg)--(0cm,-\dg);
+    \fill (0cm, 0.5\dg)+(0cm,1.5pt) -- +(0.6\dg,0cm) -- +(0pt,-1.5pt);
+    \fill (0cm, -0.5\dg)+(0cm,1.5pt) -- +(0.6\dg,0cm) -- +(0pt,-1.5pt);
+}
+
+\def\robotbase{%
+    \draw[rounded corners=8pt] (-\dw,-\dh)-- (-\dw, 0) --
+    (0,\dh)--(\dw,0)--(\dw,-\dh);
+    \draw (-0.5,-\dh)-- (0.5,-\dh);
+    \fill[pattern=north east lines] (-0.5,-1) rectangle (0.5,-\dh);
+}
+
+\newcommand{\angann}[2]{%
+    \begin{scope}[blue]
+    \draw [dashed, blue] (0,0) -- (1.2\ddx,0pt);
+    \draw [->, shorten >=3.5pt] (\ddx,0pt) arc (0:#1:\ddx);
+    \node at (#1/2-2:\ddx+8pt) {#2};
+    \end{scope}
+}
+
+\newcommand{\angannthetaone}[2]{%
+    \begin{scope}[blue]
+    \draw [dashed, blue] (0,0) -- (0pt,1.2\ddx);
+    \draw [->, shorten >=3.5pt] (0pt,\ddx) arc (90:#1:\ddx);
+    \node at (53+#1/2:\ddx+8pt) {#2};
+    \end{scope}
+}
+
+\newcommand{\lineann}[4][0.5]{%
+    \begin{scope}[rotate=#2, blue,inner sep=2pt]
+        \draw[dashed, blue!40] (0,0) -- +(0,#1)
+            node [coordinate, near end] (a) {};
+        \draw[dashed, blue!40] (#3,0) -- +(0,#1)
+            node [coordinate, near end] (b) {};
+        \draw[|<->|] (a) -- node[fill=white] {#4} (b);
+    \end{scope}
+}
+
+
+\def\thetaone{60} 
+\def\Lone{2}
+\def\thetatwo{-30}
+\def\Ltwo{2}
+\def\thetathree{-60}
+\def\Lthree{1}
+\hspace{-15mm}
+\begin{tikzpicture}[transform shape, scale=0.7]
+    \robotbase
+    \angannthetaone{\thetaone}{$\xi_1$}
+    \link(\thetaone:\Lone);
+    \joint
+    \begin{scope}[shift=(\thetaone:\Lone), rotate=\thetaone]
+        \angann{\thetatwo}{$\xi_2$}
+        \link(\thetatwo:\Ltwo);
+        \joint
+        \begin{scope}[shift=(\thetatwo:\Ltwo), rotate=\thetatwo]
+            \angann{\thetathree}{$\xi_3$}
+            \draw [dashed, blue,rotate=\thetathree] (0,0) -- (1.2\ddx,0pt);
+            \link(\thetathree:\Lthree);
+            \joint
+            \begin{scope}[shift=(\thetathree:\Lthree), rotate=\thetathree]
+                \grip
+            \end{scope}
+        \end{scope}
+    \end{scope}
+    
+\draw[thick,-latex,darkgray] (0,0) -- (1,0) node[anchor=north east]{\texttt{x}};
+\draw[thick,-latex,darkgray] (0,0) -- (0,1) node[anchor=north east]{\texttt{y}};
+\end{tikzpicture}}
+\caption{The robot manipulator. (a) Comau Smart3-S2 industrial robot manipulator setup. (b) Schematic view of the simulated three joints robot manipulator}
+\label{fig:robot}
+\end{figure}
+
+During our tests, for the sake of simplicity, making reference to the model identified in \cite{calanca2011identification}, only vertical planar motions of the robot manipulator were enabled, by locking three of the six joints. Note that the proposed algorithm is valid for any configuration of the manipulator, even in the spatial case.
+Hence, the dynamics of the system can be described in the joint space, by using the Lagrangian approach \cite{siciliano2009robot}, as 
+\begin{align}
+\label{eq:dyn}
+&B(\xi)\ddot{\xi} + n(\xi,\dot{\xi}) = \nu\\
+\label{eq:apparent}
+&n(\xi,\dot{\xi}) = C(\xi,\dot{\xi})\dot{\xi}+F_\mathrm{v}\dot{\xi} + F_\mathrm{s} \sgn(\dot{\xi}) + g(\xi) 
+\end{align}
+where $\xi\in\R^3$ is the vector of joint variables, $B(\xi) \in\R^{3\times 3}$ is the inertia matrix, $C(\xi,\dot{\xi}) \in\R^{3\times 3}$ represents centripetal and Coriolis torques, $F_\mathrm{v} \in \R^{3\times 3}$ is the viscous friction matrix, $F_\mathrm{s} \in \R^{3\times 3}$ is the static friction matrix, $g(\xi) \in \R^3$ is the vector of gravitational torques and $\nu\in \R^3$ represents the motors torques. 
+The ode45 solver with input sampled each $T=\SI{1}{\second}$ is used also in this example. The initial position of the joints is set equal to $\xi_0=[\begin{array}{ccc}
+0 & 0 & 0
+\end{array}]^\top$, the weights are $W_\kappa=\num{1e-6} I$, $W_N=I$ and $R_\kappa=\num{1e-12}I$, while the desired target is $\xi_k^\diamond = \left[\begin{array}{ccc}\tfrac{\pi}{3} & \tfrac{\pi}{4} & \tfrac{\pi}{3}
+\end{array}\right]^\top$. The horizon is set equal to $N=3$ and the initial guess is $\{\bar{\nu}_{1_\kappa}\}_{\kappa=0}^{N-1}=\{130, 160, 200\}$ for joint 1, and $\{\bar{\nu}_{2_\kappa}\}_{\kappa=0}^{N-1}=\{-100, 70, 20\}$, $\{\bar{\nu}_{3_\kappa}\}_{\kappa=0}^{N-1}=\{-50, 50, -20\}$ for joints 2 and 3, respectively. The number of experiments for Q-factors  approximation is $S=\num{200}$.
+
+Analogously to the pendulum case, the value of the cost function $\Phi$ is minimized after few iterations (see its logarithmic value in Figure \ref{fig:cost_comau}). In Figure \ref{fig:result_comau2}, instead, the joint space and the corresponding velocity space are illustrated. More specifically, the dotted lines represent the case when the initial guess $\bar{\nu}_{i_\kappa},\,i=1,\,2,\,3$ is given as input. On the other hand, the solid lines refer to the case when Algorithm  \ref{alg:iLQR} is applied until convergence, and it can be observed that the joint  positions reach the reference target, as well as velocities start from zero and, after $N-1$ steps, are zeroed again in correspondence of the desired points. The corresponding inputs are shown in Figure \ref{fig:result_comau1}.
+
+Finally, having in mind real applications of the proposed data-driven algorithm, we have considered three different optimizers to solve the problem at hand, that is \textsc{CVX}, \textsc{Yalmip} and the \emph{fit} \textsc{Matlab} function. For each of them we have computed the time needed by Algorithm \ref{alg:iLQR} to converge. Furthermore, we have improved the convergence performance by using the Levenberg-Marquardt algorithm mentioned in Remark \ref{rem:LMa}, setting $\bar{\lambda}=\num{1e12}$. The outcome values are \SI{56.97}{\second} with \textsc{CVX}, \SI{26.065}{\second} with \textsc{Yalmip}, and \SI{18.403}{\second} with \emph{fit} function. Hence, the learning procedure in all the cases results to be very fast with the \emph{fit} function overcoming all the other solvers. However, note that the \emph{fit} function, by construction, does not provide any convergence guarantees since it does not take into account the positive definite matrices constraints, as stated in Remark \ref{rem:addcon}. Therefore, we can conclude that the proposed data-driven algorithm is computationally efficient, thus making feasible its field implementation even for complex systems such as robot manipulators.
+\begin{figure}[htb!]
+\center
+\includegraphics[width=0.9\columnwidth]{figs/fig4}
+\caption{Logarithmic value of the cost function $\Phi$ for the robot example}
+\label{fig:cost_comau}
+\end{figure}
+\begin{figure}[htb!]
+\center
+\includegraphics[width=0.9\columnwidth]{figs/fig6}
+\caption{Joint space and the corresponding velocity space in case of initial guess (dotted lines) and after the learning procedure (solid lines)}
+\label{fig:result_comau2}
+\end{figure}
+\begin{figure}[htb!]
+\center
+\includegraphics[width=0.9\columnwidth]{figs/fig5}
+\caption{Input torques for the robot manipulator in case of initial guess (dashed lines) and after the learning procedure (solid lines)}
+\label{fig:result_comau1}
+\end{figure}
+
+
+
+
+\section{Conclusions}\label{sec:con}
+In this paper, it has been shown how to recast the dynamic programming solution for linear quadratic optimal control problems into a data-driven setting. Namely, the solution in terms of Q-factors to stochastic problems has been presented and an approximation algorithm has been proposed. What is worth noticing is that the approximation of Q-factors can be viewed as a particular case of the NAF algorithm, usually applied for deep-learning problems where the value function is approximated as a quadatic expression. This  paper has further proposed a new data-driven linear quadratic control, capable to determine locally optimal solutions for a class of nonlinear dynamics. A possible method to improve the convergence of the algorithm has been also suggested and results on numerical examples have been promising, thus paving the way for possible field implementations on complex systems.
+
+Future works will attempt to extend the proposed technique to account for input/state constraints
+and to derive an equivalent formulation in terms of output feedback.
+
+%\balance
+\bibliographystyle{IEEEtran}
+\bibliography{biblio}
+
+\begin{IEEEbiography}
+[{\includegraphics[width=1in,height=3truecm,clip,keepaspectratio]{figs/CorradoPossieri.jpg}}]{Corrado Possieri} (M'19)
+received his bachelor's and master's degrees in Medical engineering and his Ph.D. degree in Computer Science, Control and Geoinformation from the University of Roma Tor Vergata, Italy, in 2011, 2013, and 2016, respectively.  In 2016, he visited the University of California, Santa Barbara (UCSB). In 2018, he joined the Dipartimento di Elettronica e Telecomunicazioni at the Politecnico di Torino, where he was an Assistant Professor. Subsequently, in 2019, he joined the Istituto di Analisi dei Sistemi ed Informatica ``A. Ruberti'' of the Consiglio Nazionale delle Ricerche, where he is currently a Researcher.
+His research interests include stability and control of hybrid systems, the application of computational algebraic geometry techniques to control problems, observers, stochastic systems, and optimization.
+He is Associate Editor of IEEE CSS Conference Editorial Board, of the EUCA Conference Editorial Board, and of the IFAC Conference Editorial Board.
+\end{IEEEbiography}
+
+\begin{IEEEbiography}
+[{\includegraphics[width=1in,height=1.25 in,clip,keepaspectratio]{figs/GianPaoloIncremona.jpg}}]{Gian Paolo Incremona} (M'10) is Assistant Professor of Automatic Control at Politecnico di Milano, Italy. He was a student of the Almo Collegio Borromeo of Pavia, and of the class of Science and Technology of the Institute for Advanced Studies IUSS of Pavia. He received the Bachelor and Master degrees (with highest honor) in Electric Engineering, and the Ph.D. degree in Electronics, Electric and Computer Engineering from the University of Pavia in 2010, 2012 and 2016, respectively. From October to December 2014, he was with the Dynamics and Control Group at the Eindhoven Technology University, The Netherlands. He was a recipient of the 2018 Best Young Author Paper Award from the Italian Chapter of the {\it{IEEE Control Systems Society}}, and he has been a member of the conference editorial boards of the {\it{IEEE Control System Society}} and of the {\it{European Control Association}}, since 2018.  At present, he is {\it{Associate Editor}} of the journal {\it{Nonlinear Analysis: Hybrid Systems}}, and member of the editorial board of the {\it{International Journal of Control}}. His research interests include variable structure control, model predictive control, networked control, industrial robotics, power systems and glycemia control in diabetic subjects. 
+ 
+\end{IEEEbiography}
+
+\begin{IEEEbiography}
+    [{\includegraphics[width=1in,height=3truecm,clip,keepaspectratio]{figs/GiuseppeCCalafiore.jpg}}]{Giuseppe C. Calafiore}
+ (SM'14, F'18) received the ``Laurea'' degree in Electrical Engineering from Politecnico di Torino in 1993, and the Ph.D. degree in Information and System Theory from Politecnico di Torino, in 1997. He is with the faculty of Dipartimento di Electronica e Telecommunicazioni, Politecnico di Torino, where he currently serves as a full professor and coordinator of the Systems and Data Science lab.
+ He is  associated with the Italian National Research Council (CNR). 
+Dr. Calafiore held several visiting positions at international institutions: at the Information Systems Laboratory (ISL), Stanford University, California, in 1995; at the Ecole Nationale Sup\'erieure de Techniques Avance\'es (ENSTA), Paris, in 1998; and at the University of California at Berkeley, in 1999, 2003 and 2007. He had an appointment as a Senior Fellow at the Institute of Pure and Applied Mathematics (IPAM), University of California at Los Angeles, in 2010. He had appointments as a Visiting Professor at EECS UC Berkeley in 2017 and at the Haas Business School in 2018 and 2019.
+ Dr. Calafiore is the author of more than 180 journal and conference proceedings papers, and of eight books. He is a fellow member of the IEEE since 2018. He received the IEEE Control System Society ``George S. Axelby'' Outstanding Paper Award in 2008.  His research interests are in the fields of convex optimization, randomized algorithms, machine learning, computational finance, and identification and control of uncertain systems.
+\end{IEEEbiography}
+
+\begin{IEEEbiography}
+[{\includegraphics[width=1in,height=1.25in,clip,keepaspectratio]{figs/AntonellaFerrara.jpg}}]{Antonella Ferrara}
+(S'86, M'88, SM'03) is Full Professor of Automatic Control at the University of Pavia. Her research activity is focused on sliding mode and nonlinear control with application to traffic control, automotive control, robotics and power systems. She has authored/co-authored more than 300 papers, including more than 100 journal papers. She was {\it{Associate Editor}} of the {\it{IEEE Transactions on Control Systems Technology}} and of the {\it{IEEE Transactions on Automatic Control}}.
+At present, she is {\it{Associate Editor}} of the {\it{IEEE Control Systems Magazine}}, of {\it{Automatica}} and of the {\it{International Journal of Robust and Nonlinear Control}}.
+She is {\it{Senior Member}} of the {\it{IEEE Control Systems Society}}, and, among other technical committees, she is member of the {\it{IEEE Technical Committee on Variable Structure and Sliding Mode Control}}, and of the {\it{IFAC Technical Committee on Transportation Systems}}.
+She was elected member of the {\it{IEEE Control System Society Board of Governors}} and is member of the {\it{European Control Association (EUCA) Council}}.
+From July 2013 to December 2016 she was {\it{Chair}} of the {\it{Women in Control Standing Committee of the Control Systems Society}}.
+\end{IEEEbiography}
+
+
+
+
+\end{document}
