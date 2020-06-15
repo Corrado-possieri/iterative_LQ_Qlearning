@@ -7,9 +7,9 @@ n = 2;
 % number of inputs
 m = 1;
 % samling time
-T = 1;
+T = 0.3;
 % horizon
-N = 4;
+N = 10;
 
 % state weights
 W = 1e-3*eye(n);
@@ -22,11 +22,11 @@ x0 = [0; 0];
 xstar = repmat([pi; 0],1,N);
 
 % load options
-options = iterativeLQRset('NumIter',1e2,'pert',1e-4,'NumExp',100,...
-    'accelerated',0,'solver','yalmip');
+options = iterativeLQRset('NumIter',50,'pert',1e-6,'NumExp',100,...
+    'accelerated',0,'solver','fit','maxLamb',1e18);
 
 % initial guess
-u0 = [1, -6, 8, 0];
+u0 = [1, 2, 3, -6, -7, -5, 8, 9, 12, 0];
 % evaluate control inputs
 % optimfun = @(u) controlCost(u,W,Wn,R,m,N,T,x0,@odePendulum,xstar);
 % % initialize u0
